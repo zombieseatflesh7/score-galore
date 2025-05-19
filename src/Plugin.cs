@@ -136,7 +136,7 @@ sealed class Plugin : BaseUnityPlugin
         var d = s.deathPersistentSaveData;
         var red = s.saveStateNumber == SlugcatStats.Name.Red;
         var arti = s.saveStateNumber == MoreSlugcatsEnums.SlugcatStatsName.Artificer;
-
+        
         int vanilla = s.totFood + d.survives * 10 + s.kills.Sum(kvp => KillScore(kvp.Key) * kvp.Value)
             - (d.deaths * 3 + d.quits * 3 + s.totTime / 60)
             + (d.ascended ? 300 : 0)
@@ -212,7 +212,7 @@ sealed class Plugin : BaseUnityPlugin
             CurrentCycleScore = 10;
             CurrentAverageScore = GetAverageScore(self.rainWorld.progression.currentSaveState);
 
-            if (Options.ShowRealTime.Value) {
+            if (Options.ShowScoreRealTime.Value) {
                 self.AddPart(new ScoreCounter(self) {
                     DisplayedScore = CurrentCycleScore,
                 });
@@ -383,10 +383,6 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, package);
 
-        if (!Options.ShowScoreSleepScreen.Value) {
-            return;
-        }
-
         int tokens = self.endgameTokens?.tokens.Count ?? 0;
 
         Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(tokens / 5f));
@@ -401,39 +397,80 @@ sealed class Plugin : BaseUnityPlugin
         int total = GetTotalScore(package.saveState);
         int oldAverage = CurrentAverageScore;
         int newAverage = GetAverageScore(package.saveState);
+        int deaths = package.saveState.deathPersistentSaveData.deaths;
 
         if (self.IsAnyDeath) {
             // Deaths are always -3. Time during failed cycles doesn't counted.
             current = -3;
         }
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, 60), self.Translate("Cycle :")) {
-            start = 0,
-            end = current,
-            fmtAdd = true,
-            numberColor = ScoreTextColor(current, oldAverage)
-        });
+        bool showScore = Options.ShowScoreSleepScreen.Value;
+        bool showAverage = Options.ShowAverageSleepScreen.Value && showScore;
+        bool showDeaths = Options.ShowDeathsSleepScreen.Value && self.IsAnyDeath;
+        int c = (showScore ? 2 : 0) + (showAverage ? 1 : 0) + (showDeaths ? 1 : 0);
+        int i = 0;
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, 30), self.Translate("Total :")) {
-            start = total - current,
-            end = total,
-            animationClock = -60,
-        });
+        if (showDeaths)
+        {
+            self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, (c - 1 - i) * 30), self.Translate("Deaths :"))
+            {
+                start = deaths - 1,
+                end = deaths,
+                animationClock = -60 * i,
+                numberColor = new HSLColor(0f, 0.7f, 0.7f).rgb,
+            });
+            i++;
+        }
 
-        self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft, self.Translate("Average :")) {
-            start = oldAverage,
-            end = newAverage,
-            animationClock = -120,
-        });
+        if (showScore)
+        {
+            self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, (c - 1 - i) * 30), self.Translate("Cycle :"))
+            {
+                start = 0,
+                end = current,
+                fmtAdd = true,
+                numberColor = ScoreTextColor(current, oldAverage),
+                animationClock = -60 * i,
+            });
+            i++;
+
+            self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, (c - 1 - i) * 30), self.Translate("Total :"))
+            {
+                start = total - current,
+                end = total,
+                animationClock = -60 * i,
+            });
+            i++;
+        }
+
+        if (showAverage)
+        {
+            self.pages[0].subObjects.Add(new ScoreTicker(self.pages[0], bottomLeft + new Vector2(0, (c - 1 - i) * 30), self.Translate("Average :")) {
+                start = oldAverage,
+                end = newAverage,
+                animationClock = -60 * i,
+            });
+            i++;
+        }
     }
+
+    private int[] menuDeaths;
+    private int[] menuScores;
 
     private void SlugcatSelectMenu_ctor(On.Menu.SlugcatSelectMenu.orig_ctor orig, SlugcatSelectMenu self, ProcessManager manager)
     {
         orig(self, manager);
 
+        // statistics button
         float posX = self.startButton.pos.x - 200f - SlugcatSelectMenu.GetRestartTextOffset(self.CurrLang);
-
         self.pages[0].subObjects.Add(new StatCheckBox(self, posX));
+
+        // score label
+        int numOfSlugcats = self.slugcatColorOrder.Count;
+        menuDeaths = new int[numOfSlugcats];
+        menuScores = new int[numOfSlugcats];
+
+        //for (int i = 0; i < numOfSlugcats; i++)
     }
 
     private void SlugcatSelectMenu_StartGame(On.Menu.SlugcatSelectMenu.orig_StartGame orig, SlugcatSelectMenu self, SlugcatStats.Name storyGameCharacter)
@@ -522,6 +559,8 @@ sealed class Plugin : BaseUnityPlugin
 
     private void StoryGameStatisticsScreen_TickerIsDoneIL(ILContext il)
     {
+        // fixes an array index error caused by missing kill score values on creatures.
+
         ILCursor c = new ILCursor(il);
         try
         {
