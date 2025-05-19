@@ -1,7 +1,10 @@
 ﻿using BepInEx;
 using Menu;
+using Mono.Cecil.Cil;
+using MonoMod.Cil;
 using MoreSlugcats;
 using RWCustom;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -15,7 +18,7 @@ using UnityEngine;
 
 namespace ScoreGalore;
 
-[BepInPlugin("com.dual.score-galore", "Score Galore", "1.0.11")]
+[BepInPlugin("com.dual.score-galore", "Score Galore", "1.1.0")]
 sealed class Plugin : BaseUnityPlugin
 {
     // -- Vanilla --
@@ -63,12 +66,15 @@ sealed class Plugin : BaseUnityPlugin
             return 0;
         }
 
-        var score = StoryGameStatisticsScreen.GetNonSandboxKillscore(iconData.critType);
-        if (score == 0 && MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData) is MultiplayerUnlocks.SandboxUnlockID unlockID) {
-            score = KillScores()[unlockID.Index];
-        }
+        int score = StoryGameStatisticsScreen.GetNonSandboxKillscore(iconData.critType);
+        if (score > 0)
+            return score;
 
-        return score;
+        int sandboxIndex = MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData).Index;
+        if (sandboxIndex > -1 && sandboxIndex < KillScores().Length)
+            return KillScores()[sandboxIndex];
+
+        return 1;
     }
 
     internal static Color ScoreTextColor(int score, int targetScore)
@@ -186,6 +192,9 @@ sealed class Plugin : BaseUnityPlugin
         On.Menu.SlugcatSelectMenu.StartGame += SlugcatSelectMenu_StartGame;
         On.Menu.SlugcatSelectMenu.ComingFromRedsStatistics += SlugcatSelectMenu_ComingFromRedsStatistics;
         On.Menu.StoryGameStatisticsScreen.AddBkgIllustration += StoryGameStatisticsScreen_AddBkgIllustration;
+
+        // -- Fix statistics screen kill scores --
+        IL.Menu.StoryGameStatisticsScreen.TickerIsDone += StoryGameStatisticsScreen_TickerIsDoneIL;
     }
 
     private void RainWorld_OnModsInit(On.RainWorld.orig_OnModsInit orig, RainWorld self)
@@ -374,7 +383,7 @@ sealed class Plugin : BaseUnityPlugin
     {
         orig(self, package);
 
-        if (!Options.ShowSleepScreen.Value) {
+        if (!Options.ShowScoreSleepScreen.Value) {
             return;
         }
 
@@ -382,9 +391,11 @@ sealed class Plugin : BaseUnityPlugin
 
         Vector2 bottomLeft = new(self.LeftHandButtonsPosXAdd, 28 + 40 * Mathf.Ceil(tokens / 5f));
 
-        if (self.manager.rainWorld.ExpeditionMode && self.expPassage != null) {
+        if (self.manager.rainWorld.ExpeditionMode && self.expPassage != null)
             bottomLeft.y += 59;
-        }
+
+        if (self.UsesWarpMap)
+            bottomLeft.y += 46;
 
         int current = CurrentCycleScore;
         int total = GetTotalScore(package.saveState);
@@ -507,5 +518,53 @@ sealed class Plugin : BaseUnityPlugin
         }
 
         viewStats = null;
+    }
+
+    private void StoryGameStatisticsScreen_TickerIsDoneIL(ILContext il)
+    {
+        ILCursor c = new ILCursor(il);
+        try
+        {
+            // removing this
+            //  int num = GetNonSandboxKillscore(iconData.critType);
+            //  if (num == 0)
+            //      num = killScores[(int)MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData)];
+            c.GotoNext(
+                i => i.MatchLdarg(1),
+                i => i.MatchIsinst<StoryGameStatisticsScreen.KillsTable.KillTicker>()
+                );
+            c.GotoNext(i => i.MatchLdloc(0)); 
+            int start = c.Index;
+            c.GotoNext(i => i.MatchStloc(1));
+            c.GotoNext(i => i.MatchStloc(1));
+            int end = c.Index + 1;
+
+            c.Goto(start);
+            c.RemoveRange(end - start);
+
+            // adding this
+            // num = StoryGameStatisticsScreen_KillScore(this, iconData);
+            c.Emit(OpCodes.Ldarg_0); // this
+            c.Emit(OpCodes.Ldloc_0); // iconData
+            c.EmitDelegate(StoryGameStatisticsScreen_KillScore); // method call
+            c.Emit(OpCodes.Stloc_1); // set num
+        }
+        catch (Exception e)
+        {
+            Logger.LogError($"Error applying StoryGameStatisticsScreen.TickerIsDone IL hook. \n{e.Message}\n{e.StackTrace}");
+        }
+    }
+
+    private int StoryGameStatisticsScreen_KillScore(StoryGameStatisticsScreen self, IconSymbol.IconSymbolData iconData)
+    {
+        int score = StoryGameStatisticsScreen.GetNonSandboxKillscore(iconData.critType);
+        if (score > 0)
+            return score;
+
+        int sandboxIndex = MultiplayerUnlocks.SandboxUnlockForSymbolData(iconData).Index;
+        if (sandboxIndex > -1 && sandboxIndex < self.killScores.Length)
+            return self.killScores[sandboxIndex];
+
+        return 1;
     }
 }

@@ -47,7 +47,7 @@ sealed class ScoreTicker : PositionedMenuObject
         lastFlash = flash;
         flash = Custom.LerpAndTick(flash, 0f, 0.05f, 0.01f);
 
-        bool fast = RWInput.PlayerInput(0, menu.manager.rainWorld).mp;
+        bool fast = RWInput.PlayerInput(0).mp;
 
         animationClock += fast ? 4 : 1;
 
