@@ -74,7 +74,36 @@ sealed class Plugin : BaseUnityPlugin
         if (sandboxIndex > -1 && sandboxIndex < KillScores().Length)
             return KillScores()[sandboxIndex];
 
-        return 1;
+        return WatcherCreatureScore(iconData);
+    }
+
+    public static int WatcherCreatureScore(IconSymbol.IconSymbolData iconData)
+    {
+
+        return iconData.critType.ToString() switch
+        {
+            "DrillCrab" => 9,
+            "Barnacle" => 1,
+            "SandGrub" => 1,
+            "BigSandGrub" => 6,
+            "BigMoth" => 8,
+            "smallMoth" => 1,
+            "BoxWorm" => 12,
+            "FireSprite" => 4,
+            "Rattler" => 3,
+            "SkyWhale" => 7,
+            "ScavengerTemplar" => 14,
+            "ScavengerDisciple" => 12,
+            "Loach" => 25,
+            "RotLoach" => 25,
+            "BlizzardLizard" => 25,
+            "BasiliskLizard" => 12,
+            "IndigoLizard" => 8,
+            "Rat" => 1,
+            "Frog" => 2,
+            "Tardigrade" => 1,
+            _ => 1
+        };
     }
 
     internal static Color ScoreTextColor(int score, int targetScore)
@@ -604,6 +633,6 @@ sealed class Plugin : BaseUnityPlugin
         if (sandboxIndex > -1 && sandboxIndex < self.killScores.Length)
             return self.killScores[sandboxIndex];
 
-        return 1;
+        return WatcherCreatureScore(iconData);
     }
 }

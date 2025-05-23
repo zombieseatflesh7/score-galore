@@ -34,10 +34,10 @@ sealed class Options : OptionInterface
         float y = 420;
         Tabs[0].AddItems(
             new OpLabel(20, 600 - 40, "by Dual", true),
-            new OpLabel(20, 600 - 40 - 40, "github.com/Dual-Iron/score-galore"),
+            new OpLabel(20, 600 - 40 - 40, "https://github.com/zombieseatflesh7/score-galore"),
 
             new OpLabel(new(300, y), Vector2.zero, "Show score in real-time", FLabelAlignment.Right),
-            new OpCheckBox(ShowScoreRealTime, new(332, y - 4)),
+            new OpCheckBox(ShowScoreRealTime, new(332, y - 4)) { description = "Show a live counter of the score you have earned this cycle." },
 
             new OpLabel(new(300, y -= 40), Vector2.zero, "Delay before showing kills, in seconds", FLabelAlignment.Right),
             new OpFloatSlider(KillDelay, new(344, y - 6), 220),
@@ -46,10 +46,10 @@ sealed class Options : OptionInterface
             new OpCheckBox(ShowScoreSleepScreen, new(332, y - 4)),
 
             new OpLabel(new(300, y -= 40), Vector2.zero, "Show average score on sleep screen", FLabelAlignment.Right),
-            new OpCheckBox(ShowAverageSleepScreen, new(332, y - 4)),
+            new OpCheckBox(ShowAverageSleepScreen, new(332, y - 4)) { description = "Show the average score on the sleep screen if the score is enabled on the sleep screen."},
 
             new OpLabel(new(300, y -= 40), Vector2.zero, "Show death count on sleep screen", FLabelAlignment.Right),
-            new OpCheckBox(ShowDeathsSleepScreen, new(332, y - 4))
+            new OpCheckBox(ShowDeathsSleepScreen, new(332, y - 4)) { description = "Show the death counter on the sleep screen after you die." }
             /*
             new OpLabel(new(300, y -= 80), Vector2.zero, "Show score on story menu", FLabelAlignment.Right),
             new OpCheckBox(ShowScoreMainMenu, new(332, y - 4)),
